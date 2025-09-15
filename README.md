@@ -1,6 +1,6 @@
 # Wordle Worker
 
-Plays wordle for me so everyone things I know all the words really good
+Plays Wordle for me so I can focus on more important things in life, like figuring out how to automate Connections.
 
 This script automates playing the popular game Wordle by using Selenium to interact with the New York Times Wordle webpage. It uses a **word-scoring system** and **deductive reasoning** to find the correct five-letter word in as few guesses as possible.
 
