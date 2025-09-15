@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wordle Worker Results</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #444;
+        }
+        .wordle-grid {
+            display: grid;
+            grid-template-rows: repeat(6, 1fr);
+            grid-gap: 5px;
+            width: 300px;
+            height: 360px;
+            margin: 20px auto;
+        }
+        .wordle-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-gap: 5px;
+        }
+        .tile {
+            width: 100%;
+            height: 100%;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            font-weight: bold;
+            color: white;
+            text-transform: uppercase;
+            border: 2px solid #d3d6da;
+            box-sizing: border-box;
+        }
+        .tile.empty { background-color: #fff; }
+        .tile.absent { background-color: #787c7e; border-color: #787c7e; }
+        .tile.present { background-color: #c9b458; border-color: #c9b458; }
+        .tile.correct { background-color: #6aaa64; border-color: #6aaa64; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f1f1; }
+        .status-solved { color: green; font-weight: bold; }
+        .status-failed { color: red; font-weight: bold; }
+        
+        /* Bar chart styles */
+        .stats-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .chart-container {
+            display: flex;
+            justify-content: center;
+            align-items: end;
+            height: 200px;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .bar-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0 10px;
+            min-width: 60px;
+        }
+        .bar {
+            background-color: #6aaa64;
+            width: 40px;
+            min-height: 5px;
+            margin-bottom: 5px;
+            border-radius: 3px 3px 0 0;
+            display: flex;
+            align-items: end;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            padding-bottom: 5px;
+        }
+        .bar.failed {
+            background-color: #787c7e;
+        }
+        .bar-label {
+            font-weight: bold;
+            margin-top: 5px;
+            color: #333;
+        }
+        .chart-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #444;
+        }
+
+        /* Mini breakdown styles */
+        .breakdown { margin-top: 10px; }
+        .guess-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin: 6px 0;
+            font-size: 14px;
+        }
+        .mini-row {
+            display: grid;
+            grid-template-columns: repeat(5, 20px);
+            grid-gap: 4px;
+        }
+        .mini-tile {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #d3d6da;
+            border-radius: 3px;
+        }
+        .mini-tile.absent { background-color: #787c7e; border-color: #787c7e; }
+        .mini-tile.present { background-color: #c9b458; border-color: #c9b458; }
+        .mini-tile.correct { background-color: #6aaa64; border-color: #6aaa64; }
+    </style>
+</head>
+<body>
+
+    <h1>Wordle Worker Results</h1>
+
+    <!-- Statistics Tile -->
+    <div class="container stats-container">
+        <div class="chart-title">Guess Distribution</div>
+        <div class="chart-container">
+            {% set max_count = guess_distribution.values() | max %}
+            {% for guess_num in [1, 2, 3, 4, 5, 6, 'X'] %}
+            <div class="bar-group">
+                {% set count = guess_distribution[guess_num] %}
+                {% set height = (count / max_count * 150) if max_count > 0 else 5 %}
+                <div class="bar{{ ' failed' if guess_num == 'X' else '' }}" 
+                     style="height: {{ height }}px;">
+                    {% if count > 0 %}{{ count }}{% endif %}
+                </div>
+                <div class="bar-label">{{ guess_num }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        <p style="color: #666; font-size: 14px;">
+            Total games: {{ guess_distribution.values() | sum }} | 
+            Success rate: {% if guess_distribution.values() | sum > 0 %}{{ ((guess_distribution.values() | sum - guess_distribution['X']) / (guess_distribution.values() | sum) * 100) | round(1) }}%{% else %}0%{% endif %}
+        </p>
+    </div>
+
+    {% if today %}
+    <div class="container">
+        <h2>Today's Attempt</h2>
+        <p style="text-align: center;">
+            <strong>Status:</strong> 
+            <span class="{{ 'status-solved' if today.solved == 'yes' else 'status-failed' }}">
+                {{ "Solved" if today.solved == 'yes' else "Failed" }}
+            </span> |
+            <strong>Solution:</strong> {{ today.solution.upper() if today.solution else 'N/A' }}
+        </p>
+
+        <div class="breakdown">
+            <h3 style="text-align:center; margin: 10px 0 6px;">Guess breakdown</h3>
+            {% for guess in today.guesses %}
+            <div class="guess-item">
+                <div>#{{ loop.index }}</div>
+                <div style="min-width: 90px; font-weight: 600; letter-spacing: 1px;">
+                    {{ guess.word.upper() }}
+                </div>
+                <div class="mini-row">
+                    {% for tile in guess.results %}
+                    <div class="mini-tile {{ tile.state }}"></div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Previous Games -->
+    {% if history %}
+    {% for game in history %}
+    <div class="container">
+        <h2>{{ game.timestamp.split('T')[0] }}</h2>
+        <p style="text-align: center;">
+            <strong>Status:</strong> 
+            <span class="{{ 'status-solved' if game.solved == 'yes' else 'status-failed' }}">
+                {{ "Solved" if game.solved == 'yes' else "Failed" }}
+            </span> |
+            <strong>Solution:</strong> {{ game.solution.upper() if game.solution else 'N/A' }}
+        </p>
+
+        <div class="breakdown">
+            <h3 style="text-align:center; margin: 10px 0 6px;">Guess breakdown</h3>
+            {% for guess in game.guesses %}
+            <div class="guess-item">
+                <div>#{{ loop.index }}</div>
+                <div style="min-width: 90px; font-weight: 600; letter-spacing: 1px;">
+                    {{ guess.word.upper() }}
+                </div>
+                <div class="mini-row">
+                    {% for tile in guess.results %}
+                    <div class="mini-tile {{ tile.state }}"></div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %} {% endif %} 
+</body>
