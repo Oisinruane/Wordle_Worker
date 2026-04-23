@@ -32,12 +32,11 @@ COPY word_scores.csv ./
 COPY WebServer.py ./
 COPY Play_Script.py ./
 COPY main.py ./
-COPY index.html ./
-
-RUN mkdir templates && mv index.html templates/
+COPY templates/index.html templates/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# The command to run the main script
+EXPOSE 5001
+
 CMD ["python", "main.py"]

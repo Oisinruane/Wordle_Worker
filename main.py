@@ -9,8 +9,7 @@ def job():
     run_game()
 
 # Schedule the scraper job
-schedule.every().day.at("00:00").do(job)
-# schedule.every(10).minutes.do(job)
+schedule.every().day.at("01:00").do(job)
 
 def run_scheduler():
     while True:

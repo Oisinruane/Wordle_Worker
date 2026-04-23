@@ -9,6 +9,7 @@
 
 import time
 import csv
+import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -39,13 +40,21 @@ def load_word_list():
 
 class WordleWorker:
     def __init__(self):
-        self.driver = webdriver.Chrome()
+        options = webdriver.ChromeOptions()
+        # These options help in making the browser appear less like a bot
+        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36")
+        options.add_argument("--headless")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+
+        self.driver = webdriver.Chrome(options=options)        
         self.wait = WebDriverWait(self.driver, 20)  # Increased wait time
         self.word_scores = load_word_list()
         self.possible_words = set(self.word_scores.keys())
         self.correct_letters = {}  # {index: letter}
         self.present_letters = {}  # {letter: [indices_where_it_is_not]}
         self.absent_letters = set()
+        self.game_log = []  # To store guesses and results for the current game
         
         if not self.possible_words:
             print("Warning: No words loaded. The script may not work correctly.")
@@ -215,10 +224,56 @@ class WordleWorker:
         print(f"Selected '{best_word}' with score {best_score}")
         return best_word
 
+    def save_results_to_csv(self, solved, solution):
+        """Saves the results of a single game to results.csv."""
+        filepath = 'results.csv'
+        
+        # Define headers
+        headers = ['timestamp', 'solved', 'solution']
+        for i in range(1, 7):
+            headers.extend([f'guess{i}', f'result{i}'])
+            
+        # Prepare data row
+        row_data = {
+            'timestamp': datetime.datetime.now().isoformat(),
+            'solved': 'yes' if solved else 'no',
+            'solution': solution
+        }
+        
+        for i, log_entry in enumerate(self.game_log):
+            guess_num = i + 1
+            row_data[f'guess{guess_num}'] = log_entry['guess']
+            # Format results: e.g., "c:absent,r:present,a:correct,n:absent,e:absent"
+            result_str = ",".join([f"{l}:{s}" for l, s in log_entry['results']])
+            row_data[f'result{guess_num}'] = result_str
+            
+        try:
+            # Check if file exists to write headers
+            file_exists = False
+            try:
+                with open(filepath, 'r') as f:
+                    if f.readline():
+                        file_exists = True
+            except FileNotFoundError:
+                pass
+
+            with open(filepath, 'a', newline='') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=headers)
+                if not file_exists:
+                    writer.writeheader()
+                writer.writerow(row_data)
+            print(f"Game results saved to {filepath}")
+
+        except Exception as e:
+            print(f"Error saving results to CSV: {e}")
+
     def play(self):
         self.open_wordle()
         
         initial_guess = "crane"
+        self.game_log = []  # Reset log for a new game
+        solved = False
+        solution = ""
         
         for i in range(6):
             print(f"--- Guess {i+1} ---")
@@ -250,18 +305,32 @@ class WordleWorker:
 
             print(f"Results: {results}")
 
+            # Log the guess and its results
+            self.game_log.append({'guess': guess, 'results': results})
+
             if all(r[1] == 'correct' for r in results):
                 print(f"\nSuccess! The word is {guess.upper()}")
+                solved = True
+                solution = guess
                 break
             
             self.update_knowledge(guess, results)
 
         else:
             print("\nFailed to solve the Wordle.")
+            # If not solved, the solution is unknown. We can leave it blank.
+            solution = ""
 
-        time.sleep(10) # Keep browser open to see the result
+        self.save_results_to_csv(solved, solution)
+
+        time.sleep(10)  # Keep browser open to see the result
         self.driver.quit()
 
-if __name__ == "__main__":
+def run_game():
     worker = WordleWorker()
     worker.play()
+
+if __name__ == "__main__":
+    run_game()
+
+
