@@ -54,6 +54,7 @@ class WordleWorker:
         self.correct_letters = {}  # {index: letter}
         self.present_letters = {}  # {letter: [indices_where_it_is_not]}
         self.absent_letters = set()
+        self.guessed_words = set()
         self.game_log = []  # To store guesses and results for the current game
         
         if not self.possible_words:
@@ -155,6 +156,10 @@ class WordleWorker:
                 results.append((letter, state))
             
             print("Successfully processed all tiles and got results.")
+            valid_states = {'correct', 'present', 'absent'}
+            if any(state not in valid_states for _, state in results):
+                print("Error: Invalid tile state detected. Results may not have loaded yet.")
+                return None
             return results
             
         except TimeoutException:
@@ -297,6 +302,8 @@ class WordleWorker:
 
             print(f"Making guess: {guess}")
             self.make_guess(guess)
+            self.guessed_words.add(guess)
+            self.possible_words.discard(guess)
             
             results = self.get_results(i)
             if not results:
