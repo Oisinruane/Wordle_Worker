@@ -1,5 +1,5 @@
 import csv
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify, request
 from waitress import serve
 
 app = Flask(__name__)
@@ -87,6 +87,33 @@ def index():
     guess_distribution = calculate_guess_distribution(all_games)
     
     return render_template('index.html', today=today, history=history, guess_distribution=guess_distribution)
+
+@app.route('/api/results')
+def api_results():
+    today, history = load_game_data()
+
+    all_games = []
+    if today:
+        all_games.append(today)
+    all_games.extend(history)
+
+    limit = request.args.get('limit', type=int)
+    if limit and limit > 0:
+        all_games = all_games[:limit]
+
+    distribution = calculate_guess_distribution(all_games)
+    total = len(all_games)
+    solved = sum(1 for g in all_games if g['solved'] == 'yes')
+
+    return jsonify({
+        'total_games': total,
+        'solved': solved,
+        'failed': total - solved,
+        'win_rate': round(solved / total * 100, 1) if total else 0,
+        'guess_distribution': distribution,
+        'games': all_games
+    })
+
 
 def run_website():
     serve(app, host='0.0.0.0', port=5001)
