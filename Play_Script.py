@@ -9,6 +9,7 @@
 
 import time
 import csv
+import os
 import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -231,7 +232,7 @@ class WordleWorker:
 
     def save_results_to_csv(self, solved, solution):
         """Saves the results of a single game to results.csv."""
-        filepath = 'results.csv'
+        filepath = os.environ.get('RESULTS_CSV', 'data/results.csv' if os.path.exists('data/results.csv') else 'results.csv')
         
         # Define headers
         headers = ['timestamp', 'solved', 'solution']

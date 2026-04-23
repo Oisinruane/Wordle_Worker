@@ -1,8 +1,11 @@
 import csv
+import os
 from flask import Flask, render_template, jsonify, request
 from waitress import serve
 
 app = Flask(__name__)
+
+RESULTS_CSV = os.environ.get('RESULTS_CSV', 'data/results.csv' if os.path.exists('data/results.csv') else 'results.csv')
 
 def parse_results(result_string):
     """Parses a result string like 'c:absent,r:present' into a list of tuples."""
@@ -24,7 +27,7 @@ def load_game_data():
     """Loads and processes game data from results.csv."""
     games = []
     try:
-        with open('results.csv', 'r') as f:
+        with open(RESULTS_CSV, 'r') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 game = {
@@ -105,12 +108,14 @@ def api_results():
     total = len(all_games)
     solved = sum(1 for g in all_games if g['solved'] == 'yes')
 
+    dist_json = {str(k): v for k, v in distribution.items()}
+
     return jsonify({
         'total_games': total,
         'solved': solved,
         'failed': total - solved,
         'win_rate': round(solved / total * 100, 1) if total else 0,
-        'guess_distribution': distribution,
+        'guess_distribution': dist_json,
         'games': all_games
     })
 
