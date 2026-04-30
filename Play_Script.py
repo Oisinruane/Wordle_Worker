@@ -97,14 +97,32 @@ class WordleWorker:
             print("Play button found. Clicking with JavaScript...")
             self.driver.execute_script("arguments[0].click();", play_button)
             print("Clicked play button.")
+            time.sleep(2)
         except TimeoutException:
             print("Play button not found or timed out.")
         except Exception as e:
             print(f"An error occurred while clicking the play button: {e}")
 
+        # Dismiss any remaining overlay dialogs
+        try:
+            close_btn = self.driver.find_element(By.CSS_SELECTOR, 'button[aria-label="Close"]')
+            self.driver.execute_script("arguments[0].click();", close_btn)
+            print("Closed overlay dialog.")
+            time.sleep(1)
+        except Exception:
+            pass
+
     def make_guess(self, word):
+        # Click the game board to ensure it has focus
+        try:
+            board = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".Board-module_board__jeoPS")))
+            self.driver.execute_script("arguments[0].click();", board)
+            time.sleep(0.5)
+        except Exception:
+            pass
         body = self.driver.find_element(By.TAG_NAME, "body")
         body.send_keys(word)
+        time.sleep(0.5)
         body.send_keys(Keys.RETURN)
         time.sleep(4)  # Wait for tile flip animations
 
@@ -152,6 +170,13 @@ class WordleWorker:
                 return None
 
         print("Error: Tiles did not resolve after retries.")
+        try:
+            self.driver.save_screenshot("/tmp/wordle_debug.png")
+            print("Debug screenshot saved to /tmp/wordle_debug.png")
+            print("Page title:", self.driver.title)
+            print("Current URL:", self.driver.current_url)
+        except Exception:
+            pass
         return None
 
     def update_knowledge(self, guess, results):
