@@ -106,63 +106,53 @@ class WordleWorker:
         body = self.driver.find_element(By.TAG_NAME, "body")
         body.send_keys(word)
         body.send_keys(Keys.RETURN)
-        time.sleep(2)  # Wait for animations
+        time.sleep(4)  # Wait for tile flip animations
 
     def get_results(self, guess_index):
-        try:
-            print("Attempting to get results...")
-            print("Looking for the game board...")
-            
-            # Wait for the board to be present
-            board = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".Board-module_board__jeoPS")))
-            print("Found game board. Looking for rows...")
-            
-            # Find all rows in the board
-            rows = board.find_elements(By.CSS_SELECTOR, ".Row-module_row__pwpBq")
-            print(f"Found {len(rows)} rows.")
-            
-            if guess_index >= len(rows):
-                print(f"Error: Trying to access row {guess_index}, but only {len(rows)} rows exist.")
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                print(f"Getting results (attempt {attempt + 1})...")
+                board = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".Board-module_board__jeoPS")))
+                rows = board.find_elements(By.CSS_SELECTOR, ".Row-module_row__pwpBq")
+
+                if guess_index >= len(rows):
+                    print(f"Error: Row {guess_index} not found, only {len(rows)} rows exist.")
+                    return None
+
+                row = rows[guess_index]
+                tiles = row.find_elements(By.CSS_SELECTOR, ".Tile-module_tile__UWEHN")
+
+                results = []
+                for i, tile in enumerate(tiles):
+                    state = tile.get_attribute("data-state")
+                    aria_label = tile.get_attribute("aria-label")
+
+                    letter = None
+                    if aria_label:
+                        parts = aria_label.split(", ")
+                        if len(parts) > 1:
+                            letter = parts[1].lower()
+
+                    results.append((letter, state))
+
+                if all(state in VALID_TILE_STATES for _, state in results):
+                    for i, (letter, state) in enumerate(results):
+                        print(f"  Tile {i}: '{letter}' = {state}")
+                    return results
+
+                print(f"Tiles not ready yet (states: {[s for _, s in results]}), waiting...")
+                time.sleep(2)
+
+            except TimeoutException:
+                print("Timed out waiting for game board.")
+                return None
+            except Exception as e:
+                print(f"Error in get_results: {e}")
                 return None
 
-            print(f"Accessing row {guess_index} for the current guess...")
-            row = rows[guess_index]
-            
-            # Find all tiles in this row
-            tiles = row.find_elements(By.CSS_SELECTOR, ".Tile-module_tile__UWEHN")
-            print(f"Found {len(tiles)} tiles in row {guess_index}.")
-            
-            results = []
-            for i, tile in enumerate(tiles):
-                print(f"  - Processing tile {i}:")
-                # Get the data-state attribute which contains the result
-                state = tile.get_attribute("data-state")
-                # Get the aria-label which should contain the letter
-                aria_label = tile.get_attribute("aria-label")
-                
-                # Extract letter from aria-label (format like "1st letter, C")
-                letter = None
-                if aria_label:
-                    parts = aria_label.split(", ")
-                    if len(parts) > 1:
-                        letter = parts[1].lower()
-                
-                print(f"    > Letter: '{letter}', State: '{state}'")
-                results.append((letter, state))
-            
-            print("Successfully processed all tiles and got results.")
-            valid_states = {'correct', 'present', 'absent'}
-            if any(state not in valid_states for _, state in results):
-                print("Error: Invalid tile state detected. Results may not have loaded yet.")
-                return None
-            return results
-            
-        except TimeoutException:
-            print("Error: Timed out waiting for game board. The game may not have loaded correctly.")
-            return None
-        except Exception as e:
-            print(f"An unexpected error occurred in get_results: {e}")
-            return None
+        print("Error: Tiles did not resolve after retries.")
+        return None
 
     def update_knowledge(self, guess, results):
         for i, (letter, state) in enumerate(results):
