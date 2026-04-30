@@ -1,15 +1,5 @@
-# To run this script, you need to install selenium and download a webdriver.
-# 1. Install selenium:
-#    pip install selenium
-#
-# 2. Download a webdriver for your browser. For Chrome, download chromedriver:
-#    https://chromedriver.chromium.org/downloads
-#    Make sure the chromedriver version matches your Chrome browser version.
-#    Place the chromedriver executable in the same directory as this script, or in a directory in your system's PATH.
-
 import time
 import csv
-import os
 import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -17,6 +7,8 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+
+VALID_TILE_STATES = {'correct', 'present', 'absent'}
 
 def load_word_list():
     """Load the word list from word_scores.csv file."""
@@ -42,14 +34,16 @@ def load_word_list():
 class WordleWorker:
     def __init__(self):
         options = webdriver.ChromeOptions()
-        # These options help in making the browser appear less like a bot
-        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36")
-        options.add_argument("--headless")
+        options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--remote-debugging-port=0")
+        options.add_argument("--window-size=1920,1080")
+        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36")
 
-        self.driver = webdriver.Chrome(options=options)        
-        self.wait = WebDriverWait(self.driver, 20)  # Increased wait time
+        self.driver = webdriver.Chrome(options=options)
+        self.wait = WebDriverWait(self.driver, 20)
         self.word_scores = load_word_list()
         self.possible_words = set(self.word_scores.keys())
         self.correct_letters = {}  # {index: letter}
@@ -221,18 +215,16 @@ class WordleWorker:
         self.possible_words = new_set
 
     def choose_next_guess(self):
-        if not self.possible_words:
+        candidates = self.possible_words - self.guessed_words
+        if not candidates:
             return None
-        
-        # Find the word with the highest score
-        best_word = max(self.possible_words, key=lambda word: self.word_scores[word])
-        best_score = self.word_scores[best_word]
-        print(f"Selected '{best_word}' with score {best_score}")
+        best_word = max(candidates, key=lambda word: self.word_scores[word])
+        print(f"Selected '{best_word}' with score {self.word_scores[best_word]} ({len(candidates)} candidates)")
         return best_word
 
     def save_results_to_csv(self, solved, solution):
         """Saves the results of a single game to results.csv."""
-        filepath = os.environ.get('RESULTS_CSV', 'data/results.csv' if os.path.exists('data/results.csv') else 'results.csv')
+        filepath = 'results.csv'
         
         # Define headers
         headers = ['timestamp', 'solved', 'solution']
@@ -330,13 +322,20 @@ class WordleWorker:
             solution = ""
 
         self.save_results_to_csv(solved, solution)
-
-        time.sleep(10)  # Keep browser open to see the result
         self.driver.quit()
 
 def run_game():
-    worker = WordleWorker()
-    worker.play()
+    worker = None
+    try:
+        worker = WordleWorker()
+        worker.play()
+    except Exception as e:
+        print(f"Game failed with error: {e}")
+        if worker and hasattr(worker, 'driver'):
+            try:
+                worker.driver.quit()
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     run_game()
