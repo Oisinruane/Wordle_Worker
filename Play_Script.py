@@ -74,7 +74,7 @@ class WordleWorker:
             print("Banner container is visible.")
 
             # Step 2: Now that the container is visible, wait for the button inside it to be clickable.
-            reject_button_selector = '#fides-banner-container button[data-testid="Reject all-btn"]'
+            reject_button_selector = '#fides-banner-container button.fides-reject-all-button'
             print(f"Waiting for reject button to be clickable: '{reject_button_selector}'")
             reject_button = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, reject_button_selector)))
             
@@ -102,6 +102,20 @@ class WordleWorker:
             print("Play button not found or timed out.")
         except Exception as e:
             print(f"An error occurred while clicking the play button: {e}")
+
+        # NYT shows an ad interstitial after Play; the board isn't rendered until it's skipped
+        try:
+            print("Waiting for ad interstitial skip button...")
+            skip_button = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, '#intsl-skip button, button[class*="Skip-module_skipButton"]'))
+            )
+            self.driver.execute_script("arguments[0].click();", skip_button)
+            print("Clicked 'Continue to Wordle'.")
+            time.sleep(2)
+        except TimeoutException:
+            print("No ad interstitial found.")
+        except Exception as e:
+            print(f"An error occurred while skipping the ad interstitial: {e}")
 
         # Dismiss any remaining overlay dialogs
         try:

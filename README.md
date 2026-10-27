@@ -14,8 +14,13 @@ An automated Wordle solver that plays the daily NYT Wordle puzzle using Selenium
 
 ```bash
 docker build -t wordle-worker .
-docker run -d -p 5001:5001 --name wordle-worker wordle-worker
+mkdir -p data && cp results.csv data/results.csv
+docker run -d --restart unless-stopped -p 5001:5001 \
+  -v "$PWD/data/results.csv:/app/results.csv" \
+  --name wordle-worker wordle-worker
 ```
+
+`results.csv` is bind-mounted so results survive image rebuilds. Back it up before redeploying.
 
 The dashboard is available at `http://<host>:5001`.
 
