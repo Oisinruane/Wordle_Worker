@@ -1,6 +1,7 @@
 import time
 import csv
 import datetime
+from collections import Counter
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -45,13 +46,8 @@ class WordleWorker:
         self.driver = webdriver.Chrome(options=options)
         self.wait = WebDriverWait(self.driver, 20)
         self.word_scores = load_word_list()
-        self.possible_words = set(self.word_scores.keys())
-        self.correct_letters = {}  # {index: letter}
-        self.present_letters = {}  # {letter: [indices_where_it_is_not]}
-        self.absent_letters = set()
-        self.guessed_words = set()
-        self.game_log = []  # To store guesses and results for the current game
-        
+        self.reset_knowledge()
+
         if not self.possible_words:
             print("Warning: No words loaded. The script may not work correctly.")
 
@@ -193,51 +189,38 @@ class WordleWorker:
             pass
         return None
 
+    def reset_knowledge(self):
+        self.possible_words = set(self.word_scores.keys())
+        self.correct_letters = {}  # {index: letter}
+        self.excluded_positions = {}  # {letter: {indices_where_it_is_not}}
+        self.min_counts = {}  # {letter: fewest copies the answer can have}
+        self.max_counts = {}  # {letter: most copies the answer can have}
+        self.guessed_words = set()
+        self.game_log = []  # To store guesses and results for the current game
+
     def update_knowledge(self, guess, results):
+        known = Counter(letter for letter, state in results if state in ('correct', 'present'))
         for i, (letter, state) in enumerate(results):
             if state == 'correct':
                 self.correct_letters[i] = letter
-                if letter in self.present_letters:
-                    del self.present_letters[letter]
-            elif state == 'present':
-                if letter not in self.present_letters:
-                    self.present_letters[letter] = []
-                self.present_letters[letter].append(i)
-            elif state == 'absent':
-                # Only add to absent if not correct or present elsewhere in the word
-                if letter not in self.correct_letters.values() and letter not in self.present_letters:
-                    self.absent_letters.add(letter)
+            else:
+                self.excluded_positions.setdefault(letter, set()).add(i)
+        for letter, count in known.items():
+            self.min_counts[letter] = max(self.min_counts.get(letter, 0), count)
+        # A grey tile means the answer has no copies of that letter beyond the green/yellow ones
+        for letter, state in results:
+            if state == 'absent':
+                self.max_counts[letter] = known[letter]
 
     def filter_word_list(self):
         new_set = set()
         for word in self.possible_words:
-            valid = True
-            
-            # Check correct letters
-            for i, letter in self.correct_letters.items():
-                if word[i] != letter:
-                    valid = False
-                    break
-            if not valid: continue
-
-            # Check absent letters
-            for letter in self.absent_letters:
-                if letter in word:
-                    valid = False
-                    break
-            if not valid: continue
-
-            # Check present letters
-            for letter, positions in self.present_letters.items():
-                if letter not in word:
-                    valid = False
-                    break
-                for pos in positions:
-                    if word[pos] == letter:
-                        valid = False
-                        break
-                if not valid: break
-            
+            valid = (
+                all(word[i] == letter for i, letter in self.correct_letters.items())
+                and all(word[i] != letter for letter, positions in self.excluded_positions.items() for i in positions)
+                and all(word.count(letter) >= n for letter, n in self.min_counts.items())
+                and all(word.count(letter) <= n for letter, n in self.max_counts.items())
+            )
             if valid:
                 new_set.add(word)
         
