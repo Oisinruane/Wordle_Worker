@@ -102,16 +102,22 @@
         .bar {
             background-color: #6aaa64;
             width: 40px;
-            min-height: 5px;
+            min-height: 4px;
             margin-bottom: 5px;
-            border-radius: 3px 3px 0 0;
-            display: flex;
-            align-items: end;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            font-size: 14px;
-            padding-bottom: 5px;
+            border-radius: 4px 4px 0 0;
+        }
+        .bar.empty {
+            background-color: #dfe1e4;
+            min-height: 3px;
+        }
+        .bar-count {
+            font-size: 13px;
+            font-weight: 600;
+            color: #444;
+            margin-bottom: 4px;
+        }
+        .bar-count.empty {
+            color: #aaa;
         }
         .bar.failed {
             background-color: #787c7e;
@@ -152,6 +158,67 @@
         .mini-tile.absent { background-color: #787c7e; border-color: #787c7e; }
         .mini-tile.present { background-color: #c9b458; border-color: #c9b458; }
         .mini-tile.correct { background-color: #6aaa64; border-color: #6aaa64; }
+
+        /* Today's result is blurred until clicked, to avoid spoilers */
+        .spoiler {
+            position: relative;
+            cursor: pointer;
+        }
+        .spoiler-content {
+            filter: blur(8px);
+            transition: filter 0.3s ease;
+            user-select: none;
+        }
+        .spoiler-hint {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.3s ease;
+        }
+        .spoiler-hint span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #fff;
+            letter-spacing: 0.2px;
+            padding: 7px 14px 7px 12px;
+            border-radius: 999px;
+            background: rgba(28, 28, 30, 0.72);
+            backdrop-filter: blur(12px) saturate(160%);
+            -webkit-backdrop-filter: blur(12px) saturate(160%);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18), 0 1px 2px rgba(0, 0, 0, 0.12);
+            transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+        }
+        .spoiler-hint svg {
+            width: 14px;
+            height: 14px;
+            opacity: 0.9;
+        }
+        .spoiler:hover .spoiler-hint span,
+        .spoiler:focus-visible .spoiler-hint span {
+            transform: translateY(-1px) scale(1.03);
+            background: rgba(28, 28, 30, 0.82);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22), 0 1px 2px rgba(0, 0, 0, 0.12);
+        }
+        .spoiler:focus-visible {
+            outline: none;
+        }
+        .spoiler.revealed {
+            cursor: default;
+        }
+        .spoiler.revealed .spoiler-content {
+            filter: none;
+            user-select: auto;
+        }
+        .spoiler.revealed .spoiler-hint {
+            opacity: 0;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -167,10 +234,10 @@
             <div class="bar-group">
                 {% set count = guess_distribution[guess_num] %}
                 {% set height = (count / max_count * 150) if max_count > 0 else 5 %}
-                <div class="bar{{ ' failed' if guess_num == 'X' else '' }}" 
-                     style="height: {{ height }}px;">
-                    {% if count > 0 %}{{ count }}{% endif %}
-                </div>
+                {% set empty = ' empty' if count == 0 else '' %}
+                <div class="bar-count{{ empty }}">{{ count }}</div>
+                <div class="bar{{ ' failed' if guess_num == 'X' else '' }}{{ empty }}"
+                     style="height: {{ height }}px;"></div>
                 <div class="bar-label">{{ guess_num }}</div>
             </div>
             {% endfor %}
@@ -184,6 +251,10 @@
     {% if today %}
     <div class="container">
         <h2>Today's Attempt</h2>
+        <div class="spoiler" role="button" tabindex="0" aria-label="Today's result is hidden. Click to reveal."
+             onclick="this.classList.add('revealed')"
+             onkeydown="if (event.key === 'Enter' || event.key === ' ') this.classList.add('revealed')">
+        <div class="spoiler-content">
         <p style="text-align: center;">
             <strong>Status:</strong> 
             <span class="{{ 'status-solved' if today.solved == 'yes' else 'status-failed' }}">
@@ -207,6 +278,9 @@
                 </div>
             </div>
             {% endfor %}
+        </div>
+        </div>
+        <div class="spoiler-hint"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Click to reveal</span></div>
         </div>
     </div>
     {% endif %}
